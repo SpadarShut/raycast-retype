@@ -22,3 +22,13 @@ declare namespace Arguments {
   export type Index = {}
 }
 
+declare module "swift:*/swift" {
+  export function getEnabledLayouts(): Promise<any[]>;
+  export function getCurrentLayout(): Promise<string>;
+  export function selectLayout(name: string): Promise<string>;
+
+  export class SwiftError extends Error {
+    stderr: string;
+    stdout: string;
+  }
+}
