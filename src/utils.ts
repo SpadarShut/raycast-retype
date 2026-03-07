@@ -17,19 +17,33 @@ export interface LayoutKeyMap {
   keyMap: string;
 }
 
+// Positions 0-95 in keyMap = base layer (unshifted + shift).
+// Positions 96-191 = alt layer (option + option+shift).
+// Base-layer matches score 4× higher so a layout where the text lives on normal keys
+// wins decisively over one where the same chars are only reachable via Option.
+const BASE_LAYER_END = 96;
+const WEIGHT_BASE = 4;
+const WEIGHT_ALT = 1;
+
 /**
- * Detect which layout the text was most likely typed in by counting
- * how many characters of the text appear in each layout's key map.
+ * Detect which layout the text was most likely typed in.
+ * Uses weighted scoring: base-layer matches count 4×, alt-layer matches 1×.
+ * This prevents a layout whose Option layer contains the target chars from
+ * outscoring the layout where those chars live on the normal keys.
  */
 export function detectSourceLayout(text: string, layouts: LayoutKeyMap[]): LayoutKeyMap | null {
   if (layouts.length === 0) return null;
 
-  const scored = layouts.map((layout) => ({
-    layout,
-    score: text
-      .split("")
-      .filter((c) => c !== "\u0000" && layout.keyMap.includes(c)).length,
-  }));
+  const scored = layouts.map((layout) => {
+    let score = 0;
+    for (const char of text) {
+      if (char === "\u0000") continue;
+      const index = layout.keyMap.indexOf(char);
+      if (index === -1) continue;
+      score += index < BASE_LAYER_END ? WEIGHT_BASE : WEIGHT_ALT;
+    }
+    return { layout, score };
+  });
 
   scored.sort((a, b) => b.score - a.score);
   return scored[0].layout;

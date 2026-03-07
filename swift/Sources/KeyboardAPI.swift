@@ -103,10 +103,17 @@ private func buildKeyMap(for source: TISInputSource) -> String? {
     let kbdType = UInt32(LMGetKbdType())
 
     var result = ""
-    result.reserveCapacity(96)
+    result.reserveCapacity(192)
 
-    // Unshifted letters (35), shifted letters (35), unshifted numbers (13), shifted numbers (13)
-    for modifier: UInt32 in [0, 2] { // 0 = no modifier, 2 = shift (shiftKey >> 8)
+    // Layout (192 chars total):
+    //   Positions   0- 95: base layers  (no-mod letters, shift letters, no-mod numbers, shift numbers)
+    //   Positions  96-191: alt  layers  (option letters, option+shift letters, option numbers, option+shift numbers)
+    //
+    // Modifier values = Carbon modifier flags >> 8:
+    //   0 = no modifier, 2 = Shift, 8 = Option, 10 = Option+Shift
+
+    // Base (positions 0-95)
+    for modifier: UInt32 in [0, 2] {
         for keyCode in letterKeyCodes {
             result += translateKey(keyCode, modifier: modifier, data: keyboardData, kbdType: kbdType)
         }
@@ -116,6 +123,19 @@ private func buildKeyMap(for source: TISInputSource) -> String? {
             result += translateKey(keyCode, modifier: modifier, data: keyboardData, kbdType: kbdType)
         }
     }
+
+    // Alt (positions 96-191)
+    for modifier: UInt32 in [8, 10] {
+        for keyCode in letterKeyCodes {
+            result += translateKey(keyCode, modifier: modifier, data: keyboardData, kbdType: kbdType)
+        }
+    }
+    for modifier: UInt32 in [8, 10] {
+        for keyCode in numberKeyCodes {
+            result += translateKey(keyCode, modifier: modifier, data: keyboardData, kbdType: kbdType)
+        }
+    }
+
     return result
 }
 
