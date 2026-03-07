@@ -10,55 +10,68 @@ export const selectLine = () =>
   end tell
 `);
 
-const EN = `qwertyuiop[]asdfghjkl;'\\\`zxcvbnm,./QWERTYUIOP{}ASDFGHJKL:"|~ZXCVBNM<>?§1234567890-=±!@#$%^&*()_+`;
-const BE = `йцукенгшўзх'фывапролджэё"ячсмітьбю/ЙЦУКЕНГШЎЗХЪФЫВАПРОЛДЖЭЁ~ЯЧСМІТЬБЮ?§1234567890-=±!"№%:,.;()_+`;
-
-type Keyboard = { name: string; input: string };
-
-export const EN_KBD: Keyboard = {
-  name: "ABC",
-  input: EN,
-};
-
-export const BE_KBD: Keyboard = {
-  name: "Belarusian+",
-  input: BE,
-};
-
-export function detectLayout(
-  input: string,
-  kbdA: Keyboard,
-  kbdB: Keyboard,
-): Keyboard {
-  const array = input.split("");
-  const aChars = array.filter((char) => kbdA.input.includes(char)).length;
-  const bChars = array.filter((char) => kbdB.input.includes(char)).length;
-
-  let targetLayout: Keyboard;
-  if (aChars > bChars) {
-    targetLayout = kbdA;
-  } else {
-    targetLayout = kbdB;
-  }
-  return targetLayout;
+export interface LayoutKeyMap {
+  id: string;
+  title: string;
+  active: boolean;
+  keyMap: string;
 }
 
-export const transformText = (text: string, from: string, to: string) => {
-  let newMessage = "";
-  const messageArr = text.split("");
-  for (const i in messageArr) {
-    const char = messageArr[i];
-    let index = from.indexOf(char);
-    if (index !== -1) {
-      newMessage += to.charAt(index);
-    } else {
-      index = to.indexOf(char);
-      if (index !== -1) {
-        newMessage += from.charAt(index);
-      } else {
-        newMessage += char;
+/**
+ * Detect which layout the text was most likely typed in by counting
+ * how many characters of the text appear in each layout's key map.
+ */
+export function detectSourceLayout(text: string, layouts: LayoutKeyMap[]): LayoutKeyMap | null {
+  if (layouts.length === 0) return null;
+
+  const scored = layouts.map((layout) => ({
+    layout,
+    score: text
+      .split("")
+      .filter((c) => c !== "\u0000" && layout.keyMap.includes(c)).length,
+  }));
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0].layout;
+}
+
+/**
+ * Transform text from one layout's key map to another.
+ * For each character: find its position in fromMap (= physical key index),
+ * then return the character at that position in toMap.
+ * Null characters (\u0000) and unrecognized characters pass through unchanged.
+ */
+export function transformText(text: string, fromMap: string, toMap: string): string {
+  return text
+    .split("")
+    .map((char) => {
+      const index = fromMap.indexOf(char);
+      if (index !== -1 && index < toMap.length) {
+        const mapped = toMap[index];
+        return mapped === "\u0000" ? char : mapped;
       }
-    }
+      return char;
+    })
+    .join("");
+}
+
+/**
+ * Return candidate target layouts ordered by preference:
+ * history-preferred layouts first (excluding source), then remaining in system order.
+ */
+export function getTargetOrder(
+  layouts: LayoutKeyMap[],
+  sourceId: string,
+  historyOrder: string[],
+): LayoutKeyMap[] {
+  const candidates = layouts.filter((l) => l.id !== sourceId);
+
+  const inHistory: LayoutKeyMap[] = [];
+  for (const id of historyOrder) {
+    const layout = candidates.find((c) => c.id === id);
+    if (layout) inHistory.push(layout);
   }
-  return newMessage;
-};
+
+  const notInHistory = candidates.filter((c) => !historyOrder.includes(c.id));
+  return [...inHistory, ...notInHistory];
+}
