@@ -21,7 +21,7 @@
   "commands": [
     {
       "name": "index",
-      "title": "Fix typed text layout",
+      "title": "Retype text written in wrong keyboard layout",
       "subtitle": "Keyboard",
       "description": "",
       "mode": "no-view"

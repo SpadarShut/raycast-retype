@@ -69,6 +69,46 @@ export function transformText(text: string, fromMap: string, toMap: string): str
     .join("");
 }
 
+export interface PickResult {
+  target: LayoutKeyMap;
+  transformed: string;
+  triedTargetIds: string[];
+}
+
+/**
+ * Pick the next target layout that produces different text.
+ * Skips targets whose transformation is identical to the original.
+ * Wraps around when all targets have been tried (infinite cycling).
+ * Falls back to the last candidate if every target produces same text.
+ */
+export function pickNextTarget(
+  originalText: string,
+  sourceKeyMap: string,
+  targetOrder: LayoutKeyMap[],
+  triedTargetIds: string[],
+): PickResult {
+  let tried = [...triedTargetIds];
+  let untried = targetOrder.filter((t) => !tried.includes(t.id));
+  if (untried.length === 0) {
+    tried = [];
+    untried = targetOrder;
+  }
+
+  let target = untried[untried.length - 1];
+  let transformed = originalText;
+  for (const candidate of untried) {
+    const result = transformText(originalText, sourceKeyMap, candidate.keyMap);
+    tried.push(candidate.id);
+    if (result !== originalText) {
+      target = candidate;
+      transformed = result;
+      break;
+    }
+  }
+
+  return { target, transformed, triedTargetIds: tried };
+}
+
 /**
  * Return candidate target layouts ordered by preference:
  * history-preferred layouts first (excluding source), then remaining in system order.

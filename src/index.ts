@@ -1,6 +1,11 @@
 import { Clipboard, getSelectedText, showHUD } from "@raycast/api";
 import { getLayoutKeyMaps } from "swift:../swift";
-import { detectSourceLayout, getTargetOrder, selectLine, transformText } from "./utils";
+import {
+  detectSourceLayout,
+  getTargetOrder,
+  pickNextTarget,
+  selectLine,
+} from "./utils";
 import { HistoryManager, SessionManager } from "./SessionManager";
 import { LayoutManager } from "./LayoutManager";
 
@@ -35,14 +40,19 @@ export default async function main() {
   }
 
   // Only layouts where we successfully read key data can be transformed
-  const transformable = allLayoutMaps.filter((l) => l.keyMap && l.keyMap.length > 0);
+  const transformable = allLayoutMaps.filter(
+    (l) => l.keyMap && l.keyMap.length > 0,
+  );
   if (transformable.length < 2) {
     await showHUD("Need at least 2 keyboard layouts with key data");
     return;
   }
 
   // 3. Load session + history in parallel, then decide if this is a repeat
-  const [session, history] = await Promise.all([SessionManager.load(), HistoryManager.load()]);
+  const [session, history] = await Promise.all([
+    SessionManager.load(),
+    HistoryManager.load(),
+  ]);
 
   const isRepeat = SessionManager.isRepeat(session);
 
@@ -70,14 +80,11 @@ export default async function main() {
   // 4. Build the ordered list of target candidates
   //    History-preferred first (skipping source layout), then remaining in system order.
   //    If the last history entry matches the source layout, it's automatically skipped by getTargetOrder.
-  const targetOrder = getTargetOrder(transformable, sourceLayoutId, history.targetOrder);
-
-  // 5. Pick the next untried target
-  const nextTarget = targetOrder.find((t) => !triedTargetIds.includes(t.id));
-  if (!nextTarget) {
-    await showHUD("All layouts tried — no more candidates");
-    return;
-  }
+  const targetOrder = getTargetOrder(
+    transformable,
+    sourceLayoutId,
+    history.targetOrder,
+  );
 
   const sourceLayout = transformable.find((l) => l.id === sourceLayoutId);
   if (!sourceLayout) {
@@ -85,8 +92,17 @@ export default async function main() {
     return;
   }
 
-  // 6. Transform
-  const transformed = transformText(originalText, sourceLayout.keyMap, nextTarget.keyMap);
+  // 5. Pick the next untried target whose transformation actually changes the text.
+  //    If all targets exhausted → wrap around (infinite cycling).
+  const pick = pickNextTarget(
+    originalText,
+    sourceLayout.keyMap,
+    targetOrder,
+    triedTargetIds,
+  );
+  const nextTarget = pick.target;
+  const transformed = pick.transformed;
+
   console.log("Source:", sourceLayout.title, "→ Target:", nextTarget.title);
   console.log("Original:", JSON.stringify(originalText));
   console.log("Transformed:", JSON.stringify(transformed));
@@ -107,7 +123,7 @@ export default async function main() {
       timestamp: Date.now(),
       originalText,
       sourceLayoutId,
-      triedTargetIds: [...triedTargetIds, nextTarget.id],
+      triedTargetIds: pick.triedTargetIds,
     }),
     HistoryManager.recordSuccess(nextTarget.id),
   ]);

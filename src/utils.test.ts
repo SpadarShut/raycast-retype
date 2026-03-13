@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 // Mock @raycast/utils so the import in utils.ts doesn't break in Node
 vi.mock("@raycast/utils", () => ({ runAppleScript: vi.fn() }));
 
-import { detectSourceLayout, getTargetOrder, transformText } from "./utils";
+import { detectSourceLayout, getTargetOrder, pickNextTarget, transformText } from "./utils";
 import type { LayoutKeyMap } from "./utils";
 
 // ---------------------------------------------------------------------------
@@ -101,6 +101,65 @@ describe("transformText", () => {
 
   it("handles mixed base and alt chars in one string", () => {
     expect(transformText("ae", fromWithAlt, toWithAlt)).toBe("AE");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// pickNextTarget
+// ---------------------------------------------------------------------------
+
+describe("pickNextTarget", () => {
+  // Source layout: "abcd" in base
+  const sourceMap = "abcd".padEnd(192, "\u0000");
+  // Target that transforms: "abcd" → "ABCD"
+  const DIFF = makeLayout("diff", "ABCD");
+  // Target with same keymap as source → transform produces identical text
+  const SAME = makeLayout("same", "abcd");
+  // Another different target
+  const DIFF2 = makeLayout("diff2", "1234");
+
+  it("picks the first target that produces different text", () => {
+    const result = pickNextTarget("ab", sourceMap, [DIFF, DIFF2], []);
+    expect(result.target.id).toBe("diff");
+    expect(result.transformed).toBe("AB");
+  });
+
+  it("skips targets that produce identical text", () => {
+    const result = pickNextTarget("ab", sourceMap, [SAME, DIFF], []);
+    expect(result.target.id).toBe("diff");
+    expect(result.transformed).toBe("AB");
+    expect(result.triedTargetIds).toContain("same");
+    expect(result.triedTargetIds).toContain("diff");
+  });
+
+  it("skips multiple same-text targets", () => {
+    const SAME2 = makeLayout("same2", "abcd");
+    const result = pickNextTarget("ab", sourceMap, [SAME, SAME2, DIFF], []);
+    expect(result.target.id).toBe("diff");
+    expect(result.triedTargetIds).toEqual(["same", "same2", "diff"]);
+  });
+
+  it("wraps around when all targets have been tried", () => {
+    const result = pickNextTarget("ab", sourceMap, [DIFF, DIFF2], ["diff", "diff2"]);
+    // All tried → reset and pick first different
+    expect(result.target.id).toBe("diff");
+    expect(result.transformed).toBe("AB");
+    expect(result.triedTargetIds).toEqual(["diff"]);
+  });
+
+  it("falls back to last candidate if all produce same text", () => {
+    const SAME2 = makeLayout("same2", "abcd");
+    const result = pickNextTarget("ab", sourceMap, [SAME, SAME2], []);
+    expect(result.target.id).toBe("same2");
+    expect(result.transformed).toBe("ab");
+    expect(result.triedTargetIds).toEqual(["same", "same2"]);
+  });
+
+  it("respects already-tried targets and skips same-text in remaining", () => {
+    const result = pickNextTarget("ab", sourceMap, [DIFF, SAME, DIFF2], ["diff"]);
+    // DIFF already tried, SAME produces same text → pick DIFF2
+    expect(result.target.id).toBe("diff2");
+    expect(result.transformed).toBe("12");
   });
 });
 
