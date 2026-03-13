@@ -48,25 +48,48 @@ describe("detectSourceLayout", () => {
     const russianText = "АБВГ"; // 'А','Б' in RU base; 'В','Г' only in BE alt
     // flat: RU=2, BE=4 → flat INCORRECTLY picks BE
     // weighted: RU=2×4=8, BE=4×1=4 → weighted CORRECTLY picks RU
-    expect(detectSourceLayout(russianText, [BE, RU])?.id).toBe("ru");
+    expect(detectSourceLayout({ text: russianText, layouts: [BE, RU] })?.id).toBe("ru");
   });
 
   it("detects Belarusian when text has Belarusian-unique base chars", () => {
     // 'Ў','І' are only in BE base
-    expect(detectSourceLayout("ЎІ", [RU, BE])?.id).toBe("be");
+    expect(detectSourceLayout({ text: "ЎІ", layouts: [RU, BE] })?.id).toBe("be");
   });
 
   it("detects English for English text", () => {
-    expect(detectSourceLayout("qwerty", [EN, RU, BE])?.id).toBe("en");
+    expect(detectSourceLayout({ text: "qwerty", layouts: [EN, RU, BE] })?.id).toBe("en");
   });
 
   it("returns null for empty layout list", () => {
-    expect(detectSourceLayout("hello", [])).toBeNull();
+    expect(detectSourceLayout({ text: "hello", layouts: [] })).toBeNull();
   });
 
   it("ignores null chars (\\u0000) in scoring", () => {
-    const result = detectSourceLayout("\u0000\u0000", [EN]);
+    const result = detectSourceLayout({ text: "\u0000\u0000", layouts: [EN] });
     expect(result).toBe(EN);
+  });
+
+  it("breaks tie in favor of activeId", () => {
+    // Both share same base chars → same score, active wins
+    const L1 = makeLayout("l1", "abc");
+    const L2 = makeLayout("l2", "abc");
+    expect(detectSourceLayout({ text: "ab", layouts: [L1, L2], activeId: "l2" })?.id).toBe("l2");
+  });
+
+  it("breaks tie using historyOrder when no activeId", () => {
+    const L1 = makeLayout("l1", "abc");
+    const L2 = makeLayout("l2", "abc");
+    expect(detectSourceLayout({ text: "ab", layouts: [L1, L2], historyOrder: ["l2", "l1"] })?.id).toBe("l2");
+  });
+
+  it("activeId wins over historyOrder on tie", () => {
+    const L1 = makeLayout("l1", "abc");
+    const L2 = makeLayout("l2", "abc");
+    expect(detectSourceLayout({ text: "ab", layouts: [L1, L2], activeId: "l1", historyOrder: ["l2"] })?.id).toBe("l1");
+  });
+
+  it("does not override a clear score winner with activeId", () => {
+    expect(detectSourceLayout({ text: "АБВГ", layouts: [BE, RU], activeId: "be" })?.id).toBe("ru");
   });
 });
 
@@ -173,23 +196,37 @@ describe("getTargetOrder", () => {
   const C = makeLayout("c", "c");
 
   it("excludes the source layout from candidates", () => {
-    const result = getTargetOrder([A, B, C], "a", []);
+    const result = getTargetOrder({ layouts: [A, B, C], sourceId: "a", historyOrder: [] });
     expect(result.map((l) => l.id)).not.toContain("a");
   });
 
   it("puts history-preferred layouts first", () => {
-    const result = getTargetOrder([A, B, C], "a", ["c", "b"]);
+    const result = getTargetOrder({ layouts: [A, B, C], sourceId: "a", historyOrder: ["c", "b"] });
     expect(result.map((l) => l.id)).toEqual(["c", "b"]);
   });
 
   it("appends non-history layouts after history ones", () => {
-    const result = getTargetOrder([A, B, C], "a", ["b"]);
-    // b first (history), then c (not in history)
+    const result = getTargetOrder({ layouts: [A, B, C], sourceId: "a", historyOrder: ["b"] });
     expect(result.map((l) => l.id)).toEqual(["b", "c"]);
   });
 
   it("returns all non-source layouts in system order when history is empty", () => {
-    const result = getTargetOrder([A, B, C], "a", []);
+    const result = getTargetOrder({ layouts: [A, B, C], sourceId: "a", historyOrder: [] });
+    expect(result.map((l) => l.id)).toEqual(["b", "c"]);
+  });
+
+  it("puts active layout first, before history", () => {
+    const result = getTargetOrder({ layouts: [A, B, C], sourceId: "a", historyOrder: ["b"], activeId: "c" });
+    expect(result.map((l) => l.id)).toEqual(["c", "b"]);
+  });
+
+  it("deduplicates active layout if also in history", () => {
+    const result = getTargetOrder({ layouts: [A, B, C], sourceId: "a", historyOrder: ["c", "b"], activeId: "c" });
+    expect(result.map((l) => l.id)).toEqual(["c", "b"]);
+  });
+
+  it("ignores activeId when it equals sourceId", () => {
+    const result = getTargetOrder({ layouts: [A, B, C], sourceId: "a", historyOrder: [], activeId: "a" });
     expect(result.map((l) => l.id)).toEqual(["b", "c"]);
   });
 });

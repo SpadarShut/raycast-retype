@@ -6,7 +6,7 @@ import {
   pickNextTarget,
   selectLine,
 } from "./utils";
-import { HistoryManager, SessionManager } from "./SessionManager";
+import { HistoryManager } from "./SessionManager";
 import { LayoutManager } from "./LayoutManager";
 
 export default async function main() {
@@ -31,100 +31,63 @@ export default async function main() {
   selectedText = selectedText.replace(/\n$/, "");
 
   // 2. Load layout key maps from the system (via Swift / UCKeyTranslate)
-  let allLayoutMaps;
+  let layouts;
   try {
-    allLayoutMaps = await getLayoutKeyMaps();
+    layouts = (await getLayoutKeyMaps()).filter(
+      (l) => l.keyMap && l.keyMap.length > 0,
+    );
   } catch (e: any) {
     await showHUD(`Error loading layouts: ${e.message}`);
     return;
   }
 
-  // Only layouts where we successfully read key data can be transformed
-  const transformable = allLayoutMaps.filter(
-    (l) => l.keyMap && l.keyMap.length > 0,
-  );
-  if (transformable.length < 2) {
+  if (layouts.length < 2) {
     await showHUD("Need at least 2 keyboard layouts with key data");
     return;
   }
 
-  // 3. Load session + history in parallel, then decide if this is a repeat
-  const [session, history] = await Promise.all([
-    SessionManager.load(),
-    HistoryManager.load(),
-  ]);
-
-  const isRepeat = SessionManager.isRepeat(session);
-
-  let originalText: string;
-  let sourceLayoutId: string;
-  let triedTargetIds: string[];
-
-  if (isRepeat && session) {
-    // Re-use the original text from the previous run; ignore currently selected text
-    originalText = session.originalText;
-    sourceLayoutId = session.sourceLayoutId;
-    triedTargetIds = session.triedTargetIds;
-  } else {
-    // Fresh run: detect source layout from selected text
-    originalText = selectedText;
-    const sourceLayout = detectSourceLayout(originalText, transformable);
-    if (!sourceLayout) {
-      await showHUD("Could not detect source layout");
-      return;
-    }
-    sourceLayoutId = sourceLayout.id;
-    triedTargetIds = [];
-  }
-
-  // 4. Build the ordered list of target candidates
-  //    History-preferred first (skipping source layout), then remaining in system order.
-  //    If the last history entry matches the source layout, it's automatically skipped by getTargetOrder.
-  const targetOrder = getTargetOrder(
-    transformable,
-    sourceLayoutId,
-    history.targetOrder,
-  );
-
-  const sourceLayout = transformable.find((l) => l.id === sourceLayoutId);
+  // 3. Detect source layout (prefer active layout, then history as tiebreakers)
+  const activeId = layouts.find((l) => l.active)?.id;
+  const history = await HistoryManager.load();
+  const sourceLayout = detectSourceLayout({
+    text: selectedText,
+    layouts: layouts,
+    activeId,
+    historyOrder: history.targetOrder,
+  });
   if (!sourceLayout) {
-    await showHUD("Source layout disappeared — try again");
+    await showHUD("Could not detect source layout");
     return;
   }
 
-  // 5. Pick the next untried target whose transformation actually changes the text.
-  //    If all targets exhausted → wrap around (infinite cycling).
+  // 4. Pick target and transform (prefer the currently active layout first)
+  const targetOrder = getTargetOrder({
+    layouts: layouts,
+    sourceId: sourceLayout.id,
+    historyOrder: history.targetOrder,
+    activeId,
+  });
+
   const pick = pickNextTarget(
-    originalText,
+    selectedText,
     sourceLayout.keyMap,
     targetOrder,
-    triedTargetIds,
+    [],
   );
-  const nextTarget = pick.target;
-  const transformed = pick.transformed;
 
-  console.log("Source:", sourceLayout.title, "→ Target:", nextTarget.title);
-  console.log("Original:", JSON.stringify(originalText));
-  console.log("Transformed:", JSON.stringify(transformed));
+  console.log("Source:", sourceLayout.title, "→ Target:", pick.target.title);
+  console.log("Original:", JSON.stringify(selectedText));
+  console.log("Transformed:", JSON.stringify(pick.transformed));
 
-  // 7. Paste and switch keyboard layout
+  // 5. Paste and switch keyboard layout
   try {
-    await Clipboard.paste(transformed);
-    await LayoutManager.setInput(nextTarget.title);
-    await showHUD(`✅ ${nextTarget.title}`);
+    await Clipboard.paste(pick.transformed);
+    await LayoutManager.setInput(pick.target.title);
+    await showHUD(`✅ ${pick.target.title}`);
   } catch (e: any) {
     await showHUD(e.message);
     return;
   }
 
-  // 8. Persist state for potential repeat
-  await Promise.all([
-    SessionManager.save({
-      timestamp: Date.now(),
-      originalText,
-      sourceLayoutId,
-      triedTargetIds: pick.triedTargetIds,
-    }),
-    HistoryManager.recordSuccess(nextTarget.id),
-  ]);
+  await HistoryManager.recordSuccess(pick.target.id);
 }

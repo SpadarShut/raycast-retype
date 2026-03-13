@@ -28,24 +28,41 @@ const WEIGHT_ALT = 1;
 /**
  * Detect which layout the text was most likely typed in.
  * Uses weighted scoring: base-layer matches count 4×, alt-layer matches 1×.
- * This prevents a layout whose Option layer contains the target chars from
- * outscoring the layout where those chars live on the normal keys.
+ * Tiebreaker priority: activeId > historyOrder position > original array order.
  */
-export function detectSourceLayout(text: string, layouts: LayoutKeyMap[]): LayoutKeyMap | null {
-  if (layouts.length === 0) return null;
+export function detectSourceLayout(opts: {
+  text: string;
+  layouts: LayoutKeyMap[];
+  activeId?: string;
+  historyOrder?: string[];
+}): LayoutKeyMap | null {
+  const { text, layouts, activeId, historyOrder = [] } = opts;
+  if (layouts.length === 0) {
+    return null;
+  }
 
-  const scored = layouts.map((layout) => {
+  const scored = layouts.map((layout, index) => {
     let score = 0;
     for (const char of text) {
       if (char === "\u0000") continue;
-      const index = layout.keyMap.indexOf(char);
-      if (index === -1) continue;
-      score += index < BASE_LAYER_END ? WEIGHT_BASE : WEIGHT_ALT;
+      const pos = layout.keyMap.indexOf(char);
+      if (pos === -1) continue;
+      score += pos < BASE_LAYER_END ? WEIGHT_BASE : WEIGHT_ALT;
     }
-    return { layout, score };
+    // Tiebreaker: active layout first, then history position, then original order
+    const priority =
+      layout.id === activeId
+        ? 0
+        : historyOrder.indexOf(layout.id) !== -1
+          ? historyOrder.indexOf(layout.id) + 1
+          : historyOrder.length + 1 + index;
+    return { layout, score, priority };
   });
-
-  scored.sort((a, b) => b.score - a.score);
+  scored.sort((a, b) => b.score - a.score || a.priority - b.priority);
+  console.log(
+    "detect layout scores",
+    scored.map((s) => s.layout.title + ": " + s.score),
+  );
   return scored[0].layout;
 }
 
@@ -55,7 +72,11 @@ export function detectSourceLayout(text: string, layouts: LayoutKeyMap[]): Layou
  * then return the character at that position in toMap.
  * Null characters (\u0000) and unrecognized characters pass through unchanged.
  */
-export function transformText(text: string, fromMap: string, toMap: string): string {
+export function transformText(
+  text: string,
+  fromMap: string,
+  toMap: string,
+): string {
   return text
     .split("")
     .map((char) => {
@@ -85,7 +106,7 @@ export function pickNextTarget(
   originalText: string,
   sourceKeyMap: string,
   targetOrder: LayoutKeyMap[],
-  triedTargetIds: string[],
+  triedTargetIds: string[] = [],
 ): PickResult {
   let tried = [...triedTargetIds];
   let untried = targetOrder.filter((t) => !tried.includes(t.id));
@@ -111,21 +132,30 @@ export function pickNextTarget(
 
 /**
  * Return candidate target layouts ordered by preference:
- * history-preferred layouts first (excluding source), then remaining in system order.
+ * active layout first, then history-preferred, then remaining in system order.
+ * Source layout is always excluded.
  */
-export function getTargetOrder(
-  layouts: LayoutKeyMap[],
-  sourceId: string,
-  historyOrder: string[],
-): LayoutKeyMap[] {
+export function getTargetOrder(opts: {
+  layouts: LayoutKeyMap[];
+  sourceId: string;
+  historyOrder: string[];
+  activeId?: string;
+}): LayoutKeyMap[] {
+  const { layouts, sourceId, historyOrder, activeId } = opts;
   const candidates = layouts.filter((l) => l.id !== sourceId);
 
-  const inHistory: LayoutKeyMap[] = [];
-  for (const id of historyOrder) {
+  const priorityIds = activeId
+    ? [activeId, ...historyOrder.filter((id) => id !== activeId)]
+    : historyOrder;
+
+  const prioritized: LayoutKeyMap[] = [];
+  for (const id of priorityIds) {
     const layout = candidates.find((c) => c.id === id);
-    if (layout) inHistory.push(layout);
+    if (layout) {
+      prioritized.push(layout);
+    }
   }
 
-  const notInHistory = candidates.filter((c) => !historyOrder.includes(c.id));
-  return [...inHistory, ...notInHistory];
+  const rest = candidates.filter((c) => !priorityIds.includes(c.id));
+  return [...prioritized, ...rest];
 }

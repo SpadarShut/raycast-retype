@@ -1,4 +1,8 @@
-import { getEnabledLayouts, getCurrentLayout, selectLayout } from "swift:../swift";
+import {
+  getCurrentLayout,
+  getEnabledLayouts,
+  selectLayout,
+} from "swift:../swift";
 
 interface ILayout {
   readonly title: string;
@@ -36,12 +40,11 @@ export const LayoutManager: ILayoutManager = class Layout implements ILayout {
 
   static async getAll() {
     const layouts = await getEnabledLayouts();
-    const current = await getCurrentLayout();
 
-    LayoutManager.activeInput = current;
+    LayoutManager.activeInput = await getCurrentLayout();
 
     const sources: Array<ILayout> = layouts.map(
-      (layout) => new Layout(layout.id, layout.title)
+      (layout) => new Layout(layout.id, layout.title),
     );
 
     return sources.sort((a, b) => a.title.localeCompare(b.title));
