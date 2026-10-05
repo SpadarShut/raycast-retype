@@ -1,3 +1,3 @@
-# raycast-retype Changelog
+# Retype Changelog
 
-## [Initial Version] - 2024-04-09
+## [Initial Version] - {PR_MERGE_DATE}

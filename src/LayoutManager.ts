@@ -1,4 +1,8 @@
-import { getEnabledLayouts, getCurrentLayout, selectLayout } from "swift:../swift";
+import {
+  getCurrentLayout,
+  getEnabledLayouts,
+  selectLayout,
+} from "swift:../swift";
 
 interface ILayout {
   readonly title: string;
@@ -9,9 +13,10 @@ interface ILayout {
 
 interface ILayoutManager {
   getAll: () => Promise<ILayout[]>;
-  setInput: (input: string) => Promise<ILayout | null>;
+  setInput: (input: string) => Promise<string | null>;
   setNextInput: () => Promise<ILayout>;
   getNextInput: () => Promise<ILayout>;
+  getPrevInput: () => Promise<ILayout>;
   activeInput?: string;
 }
 
@@ -36,12 +41,11 @@ export const LayoutManager: ILayoutManager = class Layout implements ILayout {
 
   static async getAll() {
     const layouts = await getEnabledLayouts();
-    const current = await getCurrentLayout();
 
-    LayoutManager.activeInput = current;
+    LayoutManager.activeInput = await getCurrentLayout();
 
     const sources: Array<ILayout> = layouts.map(
-      (layout) => new Layout(layout.id, layout.title)
+      (layout) => new Layout(layout.id, layout.title),
     );
 
     return sources.sort((a, b) => a.title.localeCompare(b.title));
@@ -76,15 +80,11 @@ export const LayoutManager: ILayoutManager = class Layout implements ILayout {
   }
 
   static async setInput(title: string) {
-    const all = await LayoutManager.getAll();
-    const next = all.find((l) => l.title === title) || null;
-
-    console.log({ next, title, all: all.map((l) => l.title) });
-
-    if (next) {
-      await next.activate();
+    const status = await selectLayout(title);
+    if (status !== "found") {
+      return null;
     }
-    return next;
+    return title;
   }
 
   static async setNextInput() {
