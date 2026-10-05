@@ -1,6 +1,6 @@
 {
   "$schema": "https://www.raycast.com/schemas/extension.json",
-  "name": "correct-typed-language",
+  "name": "retype",
   "title": "Retype",
   "description": "Fix text that you typed in a wrong keyboard layout and switch to the correct layout.",
   "icon": "extension_icon.png",
@@ -38,5 +38,8 @@
     "prettier": "^3.8.1",
     "typescript": "^5.9.3",
     "vitest": "^2.1.9"
-  }
+  },
+  "platforms": [
+    "macOS"
+  ]
 }
