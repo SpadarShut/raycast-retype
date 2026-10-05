@@ -13,9 +13,10 @@ interface ILayout {
 
 interface ILayoutManager {
   getAll: () => Promise<ILayout[]>;
-  setInput: (input: string) => Promise<ILayout | null>;
+  setInput: (input: string) => Promise<string | null>;
   setNextInput: () => Promise<ILayout>;
   getNextInput: () => Promise<ILayout>;
+  getPrevInput: () => Promise<ILayout>;
   activeInput?: string;
 }
 
@@ -79,15 +80,11 @@ export const LayoutManager: ILayoutManager = class Layout implements ILayout {
   }
 
   static async setInput(title: string) {
-    const all = await LayoutManager.getAll();
-    const next = all.find((l) => l.title === title) || null;
-
-    console.log({ next, title, all: all.map((l) => l.title) });
-
-    if (next) {
-      await next.activate();
+    const status = await selectLayout(title);
+    if (status !== "found") {
+      return null;
     }
-    return next;
+    return title;
   }
 
   static async setNextInput() {

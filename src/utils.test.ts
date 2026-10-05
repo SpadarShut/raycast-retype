@@ -3,7 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 // Mock @raycast/utils so the import in utils.ts doesn't break in Node
 vi.mock("@raycast/utils", () => ({ runAppleScript: vi.fn() }));
 
-import { detectSourceLayout, getTargetOrder, pickNextTarget, transformText } from "./utils";
+import {
+  detectSourceLayout,
+  getTargetOrder,
+  pickNextTarget,
+  transformText,
+} from "./utils";
 import type { LayoutKeyMap } from "./utils";
 
 // ---------------------------------------------------------------------------
@@ -11,7 +16,11 @@ import type { LayoutKeyMap } from "./utils";
 // ---------------------------------------------------------------------------
 
 /** Build a 192-char keyMap: positions 0-95 = base layer, 96-191 = alt layer. */
-function makeLayout(id: string, baseChars: string, altChars = ""): LayoutKeyMap {
+function makeLayout(
+  id: string,
+  baseChars: string,
+  altChars = "",
+): LayoutKeyMap {
   const base = baseChars.padEnd(96, "\u0000").slice(0, 96);
   const alt = altChars.padEnd(96, "\u0000").slice(0, 96);
   return { id, title: id, active: false, keyMap: base + alt };
@@ -48,16 +57,22 @@ describe("detectSourceLayout", () => {
     const russianText = "АБВГ"; // 'А','Б' in RU base; 'В','Г' only in BE alt
     // flat: RU=2, BE=4 → flat INCORRECTLY picks BE
     // weighted: RU=2×4=8, BE=4×1=4 → weighted CORRECTLY picks RU
-    expect(detectSourceLayout({ text: russianText, layouts: [BE, RU] })?.id).toBe("ru");
+    expect(
+      detectSourceLayout({ text: russianText, layouts: [BE, RU] })?.id,
+    ).toBe("ru");
   });
 
   it("detects Belarusian when text has Belarusian-unique base chars", () => {
     // 'Ў','І' are only in BE base
-    expect(detectSourceLayout({ text: "ЎІ", layouts: [RU, BE] })?.id).toBe("be");
+    expect(detectSourceLayout({ text: "ЎІ", layouts: [RU, BE] })?.id).toBe(
+      "be",
+    );
   });
 
   it("detects English for English text", () => {
-    expect(detectSourceLayout({ text: "qwerty", layouts: [EN, RU, BE] })?.id).toBe("en");
+    expect(
+      detectSourceLayout({ text: "qwerty", layouts: [EN, RU, BE] })?.id,
+    ).toBe("en");
   });
 
   it("returns null for empty layout list", () => {
@@ -73,23 +88,41 @@ describe("detectSourceLayout", () => {
     // Both share same base chars → same score, active wins
     const L1 = makeLayout("l1", "abc");
     const L2 = makeLayout("l2", "abc");
-    expect(detectSourceLayout({ text: "ab", layouts: [L1, L2], activeId: "l2" })?.id).toBe("l2");
+    expect(
+      detectSourceLayout({ text: "ab", layouts: [L1, L2], activeId: "l2" })?.id,
+    ).toBe("l2");
   });
 
   it("breaks tie using historyOrder when no activeId", () => {
     const L1 = makeLayout("l1", "abc");
     const L2 = makeLayout("l2", "abc");
-    expect(detectSourceLayout({ text: "ab", layouts: [L1, L2], historyOrder: ["l2", "l1"] })?.id).toBe("l2");
+    expect(
+      detectSourceLayout({
+        text: "ab",
+        layouts: [L1, L2],
+        historyOrder: ["l2", "l1"],
+      })?.id,
+    ).toBe("l2");
   });
 
   it("activeId wins over historyOrder on tie", () => {
     const L1 = makeLayout("l1", "abc");
     const L2 = makeLayout("l2", "abc");
-    expect(detectSourceLayout({ text: "ab", layouts: [L1, L2], activeId: "l1", historyOrder: ["l2"] })?.id).toBe("l1");
+    expect(
+      detectSourceLayout({
+        text: "ab",
+        layouts: [L1, L2],
+        activeId: "l1",
+        historyOrder: ["l2"],
+      })?.id,
+    ).toBe("l1");
   });
 
   it("does not override a clear score winner with activeId", () => {
-    expect(detectSourceLayout({ text: "АБВГ", layouts: [BE, RU], activeId: "be" })?.id).toBe("ru");
+    expect(
+      detectSourceLayout({ text: "АБВГ", layouts: [BE, RU], activeId: "be" })
+        ?.id,
+    ).toBe("ru");
   });
 });
 
@@ -163,7 +196,12 @@ describe("pickNextTarget", () => {
   });
 
   it("wraps around when all targets have been tried", () => {
-    const result = pickNextTarget("ab", sourceMap, [DIFF, DIFF2], ["diff", "diff2"]);
+    const result = pickNextTarget(
+      "ab",
+      sourceMap,
+      [DIFF, DIFF2],
+      ["diff", "diff2"],
+    );
     // All tried → reset and pick first different
     expect(result.target.id).toBe("diff");
     expect(result.transformed).toBe("AB");
@@ -179,7 +217,12 @@ describe("pickNextTarget", () => {
   });
 
   it("respects already-tried targets and skips same-text in remaining", () => {
-    const result = pickNextTarget("ab", sourceMap, [DIFF, SAME, DIFF2], ["diff"]);
+    const result = pickNextTarget(
+      "ab",
+      sourceMap,
+      [DIFF, SAME, DIFF2],
+      ["diff"],
+    );
     // DIFF already tried, SAME produces same text → pick DIFF2
     expect(result.target.id).toBe("diff2");
     expect(result.transformed).toBe("12");
@@ -196,37 +239,68 @@ describe("getTargetOrder", () => {
   const C = makeLayout("c", "c");
 
   it("excludes the source layout from candidates", () => {
-    const result = getTargetOrder({ layouts: [A, B, C], sourceId: "a", historyOrder: [] });
+    const result = getTargetOrder({
+      layouts: [A, B, C],
+      sourceId: "a",
+      historyOrder: [],
+    });
     expect(result.map((l) => l.id)).not.toContain("a");
   });
 
   it("puts history-preferred layouts first", () => {
-    const result = getTargetOrder({ layouts: [A, B, C], sourceId: "a", historyOrder: ["c", "b"] });
+    const result = getTargetOrder({
+      layouts: [A, B, C],
+      sourceId: "a",
+      historyOrder: ["c", "b"],
+    });
     expect(result.map((l) => l.id)).toEqual(["c", "b"]);
   });
 
   it("appends non-history layouts after history ones", () => {
-    const result = getTargetOrder({ layouts: [A, B, C], sourceId: "a", historyOrder: ["b"] });
+    const result = getTargetOrder({
+      layouts: [A, B, C],
+      sourceId: "a",
+      historyOrder: ["b"],
+    });
     expect(result.map((l) => l.id)).toEqual(["b", "c"]);
   });
 
   it("returns all non-source layouts in system order when history is empty", () => {
-    const result = getTargetOrder({ layouts: [A, B, C], sourceId: "a", historyOrder: [] });
+    const result = getTargetOrder({
+      layouts: [A, B, C],
+      sourceId: "a",
+      historyOrder: [],
+    });
     expect(result.map((l) => l.id)).toEqual(["b", "c"]);
   });
 
   it("puts active layout first, before history", () => {
-    const result = getTargetOrder({ layouts: [A, B, C], sourceId: "a", historyOrder: ["b"], activeId: "c" });
+    const result = getTargetOrder({
+      layouts: [A, B, C],
+      sourceId: "a",
+      historyOrder: ["b"],
+      activeId: "c",
+    });
     expect(result.map((l) => l.id)).toEqual(["c", "b"]);
   });
 
   it("deduplicates active layout if also in history", () => {
-    const result = getTargetOrder({ layouts: [A, B, C], sourceId: "a", historyOrder: ["c", "b"], activeId: "c" });
+    const result = getTargetOrder({
+      layouts: [A, B, C],
+      sourceId: "a",
+      historyOrder: ["c", "b"],
+      activeId: "c",
+    });
     expect(result.map((l) => l.id)).toEqual(["c", "b"]);
   });
 
   it("ignores activeId when it equals sourceId", () => {
-    const result = getTargetOrder({ layouts: [A, B, C], sourceId: "a", historyOrder: [], activeId: "a" });
+    const result = getTargetOrder({
+      layouts: [A, B, C],
+      sourceId: "a",
+      historyOrder: [],
+      activeId: "a",
+    });
     expect(result.map((l) => l.id)).toEqual(["b", "c"]);
   });
 });

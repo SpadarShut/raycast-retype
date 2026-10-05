@@ -23,7 +23,13 @@ export const HistoryManager = {
   /** Move targetId to front of history (most recently used). */
   async recordSuccess(targetId: string): Promise<void> {
     const history = await HistoryManager.load();
-    const updated = [targetId, ...history.targetOrder.filter((id) => id !== targetId)];
-    await LocalStorage.setItem(HISTORY_KEY, JSON.stringify({ targetOrder: updated }));
+    const updated = [
+      targetId,
+      ...history.targetOrder.filter((id) => id !== targetId),
+    ];
+    await LocalStorage.setItem(
+      HISTORY_KEY,
+      JSON.stringify({ targetOrder: updated }),
+    );
   },
 };

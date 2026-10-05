@@ -5,11 +5,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // vi.hoisted() ensures the variables are available when vi.mock() is hoisted.
 // ---------------------------------------------------------------------------
 
-const { mockGetEnabledLayouts, mockGetCurrentLayout, mockSelectLayout } = vi.hoisted(() => ({
-  mockGetEnabledLayouts: vi.fn(),
-  mockGetCurrentLayout: vi.fn(),
-  mockSelectLayout: vi.fn(),
-}));
+const { mockGetEnabledLayouts, mockGetCurrentLayout, mockSelectLayout } =
+  vi.hoisted(() => ({
+    mockGetEnabledLayouts: vi.fn(),
+    mockGetCurrentLayout: vi.fn(),
+    mockSelectLayout: vi.fn(),
+  }));
 
 vi.mock("swift:../swift", () => ({
   getEnabledLayouts: mockGetEnabledLayouts,
@@ -24,7 +25,10 @@ import { LayoutManager } from "./LayoutManager";
 // ---------------------------------------------------------------------------
 
 /** Simulate the system having `layouts` with `active` being the current one. */
-function setupLayouts(layouts: Array<{ id: string; title: string }>, activeTitle: string) {
+function setupLayouts(
+  layouts: Array<{ id: string; title: string }>,
+  activeTitle: string,
+) {
   mockGetEnabledLayouts.mockResolvedValue(layouts);
   mockGetCurrentLayout.mockResolvedValue(activeTitle);
 }
@@ -166,7 +170,7 @@ describe("LayoutManager.getPrevInput", () => {
       "Russian",
     );
 
-    const prev = await (LayoutManager as any).getPrevInput();
+    const prev = await LayoutManager.getPrevInput();
     expect(prev.id).toBe("en");
   });
 
@@ -179,7 +183,7 @@ describe("LayoutManager.getPrevInput", () => {
       "English",
     );
 
-    const prev = await (LayoutManager as any).getPrevInput();
+    const prev = await LayoutManager.getPrevInput();
     expect(prev.id).toBe("en");
   });
 
@@ -192,7 +196,7 @@ describe("LayoutManager.getPrevInput", () => {
       "",
     );
 
-    const prev = await (LayoutManager as any).getPrevInput();
+    const prev = await LayoutManager.getPrevInput();
     expect(prev.id).toBe("en");
   });
 });
@@ -208,26 +212,22 @@ describe("LayoutManager.setInput", () => {
     mockSelectLayout.mockResolvedValue("found");
   });
 
-  it("activates the layout with the matching title and returns it", async () => {
-    setupLayouts(
-      [
-        { id: "en", title: "English" },
-        { id: "ru", title: "Russian" },
-      ],
-      "English",
-    );
+  it("calls selectLayout directly and returns the title on success", async () => {
+    mockSelectLayout.mockResolvedValue("found");
 
     const result = await LayoutManager.setInput("Russian");
-    expect(result?.id).toBe("ru");
+    expect(result).toBe("Russian");
     expect(mockSelectLayout).toHaveBeenCalledWith("Russian");
+    expect(mockGetEnabledLayouts).not.toHaveBeenCalled();
+    expect(mockGetCurrentLayout).not.toHaveBeenCalled();
   });
 
-  it("returns null when no layout matches the title", async () => {
-    setupLayouts([{ id: "en", title: "English" }], "English");
+  it("returns null when selectLayout does not find the layout", async () => {
+    mockSelectLayout.mockResolvedValue("not_found");
 
     const result = await LayoutManager.setInput("NonExistent");
     expect(result).toBeNull();
-    expect(mockSelectLayout).not.toHaveBeenCalled();
+    expect(mockSelectLayout).toHaveBeenCalledWith("NonExistent");
   });
 });
 
@@ -280,6 +280,8 @@ describe("Layout.activate", () => {
     mockSelectLayout.mockResolvedValue("not_found");
 
     const layouts = await LayoutManager.getAll();
-    await expect(layouts[0].activate()).rejects.toThrow('Layout "English" Not Found');
+    await expect(layouts[0].activate()).rejects.toThrow(
+      'Layout "English" Not Found',
+    );
   });
 });

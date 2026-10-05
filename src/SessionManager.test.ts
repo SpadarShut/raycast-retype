@@ -33,8 +33,13 @@ describe("HistoryManager", () => {
     });
 
     it("returns stored history", async () => {
-      store.set("retype_history", JSON.stringify({ targetOrder: ["ru", "en"] }));
-      expect(await HistoryManager.load()).toEqual({ targetOrder: ["ru", "en"] });
+      store.set(
+        "retype_history",
+        JSON.stringify({ targetOrder: ["ru", "en"] }),
+      );
+      expect(await HistoryManager.load()).toEqual({
+        targetOrder: ["ru", "en"],
+      });
     });
 
     it("returns empty targetOrder when stored value is invalid JSON", async () => {
@@ -50,19 +55,36 @@ describe("HistoryManager", () => {
     });
 
     it("moves an existing id to the front without duplication", async () => {
-      store.set("retype_history", JSON.stringify({ targetOrder: ["en", "ru", "be"] }));
+      store.set(
+        "retype_history",
+        JSON.stringify({ targetOrder: ["en", "ru", "be"] }),
+      );
       await HistoryManager.recordSuccess("ru");
-      expect((await HistoryManager.load()).targetOrder).toEqual(["ru", "en", "be"]);
+      expect((await HistoryManager.load()).targetOrder).toEqual([
+        "ru",
+        "en",
+        "be",
+      ]);
     });
 
     it("prepends a brand-new id before existing ones", async () => {
-      store.set("retype_history", JSON.stringify({ targetOrder: ["en", "ru"] }));
+      store.set(
+        "retype_history",
+        JSON.stringify({ targetOrder: ["en", "ru"] }),
+      );
       await HistoryManager.recordSuccess("be");
-      expect((await HistoryManager.load()).targetOrder).toEqual(["be", "en", "ru"]);
+      expect((await HistoryManager.load()).targetOrder).toEqual([
+        "be",
+        "en",
+        "ru",
+      ]);
     });
 
     it("does not duplicate the id when it is already first", async () => {
-      store.set("retype_history", JSON.stringify({ targetOrder: ["ru", "en"] }));
+      store.set(
+        "retype_history",
+        JSON.stringify({ targetOrder: ["ru", "en"] }),
+      );
       await HistoryManager.recordSuccess("ru");
       const history = await HistoryManager.load();
       expect(history.targetOrder).toEqual(["ru", "en"]);

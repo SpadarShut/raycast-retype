@@ -26,6 +26,22 @@ const WEIGHT_BASE = 4;
 const WEIGHT_ALT = 1;
 
 /**
+ * Build a Map from character → first position in keyMap.
+ * First occurrence wins (base layer priority over alt layer).
+ * Null characters are skipped.
+ */
+function buildCharIndex(keyMap: string): Map<string, number> {
+  const map = new Map<string, number>();
+  for (let i = 0; i < keyMap.length; i++) {
+    const ch = keyMap[i];
+    if (ch !== "\u0000" && !map.has(ch)) {
+      map.set(ch, i);
+    }
+  }
+  return map;
+}
+
+/**
  * Detect which layout the text was most likely typed in.
  * Uses weighted scoring: base-layer matches count 4×, alt-layer matches 1×.
  * Tiebreaker priority: activeId > historyOrder position > original array order.
@@ -42,11 +58,16 @@ export function detectSourceLayout(opts: {
   }
 
   const scored = layouts.map((layout, index) => {
+    const charIndex = buildCharIndex(layout.keyMap);
     let score = 0;
     for (const char of text) {
-      if (char === "\u0000") continue;
-      const pos = layout.keyMap.indexOf(char);
-      if (pos === -1) continue;
+      if (char === "\u0000") {
+        continue;
+      }
+      const pos = charIndex.get(char);
+      if (pos === undefined) {
+        continue;
+      }
       score += pos < BASE_LAYER_END ? WEIGHT_BASE : WEIGHT_ALT;
     }
     // Tiebreaker: active layout first, then history position, then original order
@@ -59,10 +80,6 @@ export function detectSourceLayout(opts: {
     return { layout, score, priority };
   });
   scored.sort((a, b) => b.score - a.score || a.priority - b.priority);
-  console.log(
-    "detect layout scores",
-    scored.map((s) => s.layout.title + ": " + s.score),
-  );
   return scored[0].layout;
 }
 
@@ -77,11 +94,12 @@ export function transformText(
   fromMap: string,
   toMap: string,
 ): string {
+  const fromIndex = buildCharIndex(fromMap);
   return text
     .split("")
     .map((char) => {
-      const index = fromMap.indexOf(char);
-      if (index !== -1 && index < toMap.length) {
+      const index = fromIndex.get(char);
+      if (index !== undefined && index < toMap.length) {
         const mapped = toMap[index];
         return mapped === "\u0000" ? char : mapped;
       }
