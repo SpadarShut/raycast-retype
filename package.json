@@ -1,10 +1,10 @@
 {
   "$schema": "https://www.raycast.com/schemas/extension.json",
   "name": "correct-typed-language",
-  "title": "correct-typed-language",
-  "description": "",
+  "title": "Retype",
+  "description": "Fix text that you typed in a wrong keyboard layout and switch to the correct layout.",
   "icon": "extension_icon.png",
-  "author": "SpadarShut",
+  "author": "pavel_shut",
   "categories": [
     "Productivity"
   ],
@@ -21,9 +21,8 @@
   "commands": [
     {
       "name": "index",
-      "title": "Retype text written in wrong keyboard layout",
-      "subtitle": "Keyboard",
-      "description": "",
+      "title": "Retype in Correct Layout",
+      "description": "Fix text that you typed in a wrong keyboard layout and switch to the correct layout.",
       "mode": "no-view"
     }
   ],
