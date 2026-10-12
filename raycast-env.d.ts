@@ -23,8 +23,6 @@ declare namespace Arguments {
 }
 
 declare module "swift:*/swift" {
-  export function getEnabledLayouts(): Promise<any[]>;
-  export function getCurrentLayout(): Promise<string>;
   export function selectLayout(name: string): Promise<string>;
   export function getLayoutKeyMaps(): Promise<any[]>;
 
