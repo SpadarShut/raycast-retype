@@ -6,4 +6,4 @@
 - With no selection, Sublime Text no longer appends the fixed text to the line.
 - Safari no longer beeps when nothing is selected.
 
-## [Initial Version] - {PR_MERGE_DATE}
+## [Initial Version] - 2026-10-12
