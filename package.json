@@ -1,9 +1,9 @@
 {
   "$schema": "https://www.raycast.com/schemas/extension.json",
-  "name": "correct-typed-language",
-  "title": "correct-typed-language",
-  "description": "",
-  "icon": "command-icon.png",
+  "name": "retype-fix-wrong-keyboard-layout-text",
+  "title": "Retype - Fix Wrong Keyboard Layout Text",
+  "description": "Fix text that you typed in a wrong keyboard layout and switch to the correct layout.",
+  "icon": "extension_icon.png",
   "author": "pavel_shut",
   "categories": [
     "Productivity"
@@ -14,27 +14,39 @@
     "dev": "ray develop",
     "fix-lint": "ray lint --fix",
     "lint": "ray lint",
-    "publish": "npx @raycast/api@latest publish"
+    "publish": "npx @raycast/api@latest publish",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "commands": [
     {
       "name": "index",
-      "title": "Fix typed text layout",
-      "subtitle": "Keyboard",
-      "description": "",
-      "mode": "no-view"
+      "title": "Correct Text Typed in Wrong Keyboard Layout",
+      "description": "Fix text that you typed in a wrong keyboard layout and switch to the correct layout.",
+      "mode": "no-view",
+      "keywords": [
+        "punto switcher",
+        "keyboard layout",
+        "wrong layout",
+        "switch language",
+        "convert layout"
+      ]
     }
   ],
   "dependencies": {
-    "@raycast/api": "^1.69.0",
-    "@raycast/utils": "^1.14.0"
+    "@raycast/api": "^2.6.2",
+    "@raycast/utils": "^2.3.2"
   },
   "devDependencies": {
-    "@raycast/eslint-config": "^1.0.6",
-    "@types/node": "20.8.10",
-    "@types/react": "18.2.27",
-    "eslint": "^8.51.0",
-    "prettier": "^3.0.3",
-    "typescript": "^5.2.2"
-  }
+    "@raycast/eslint-config": "^2.2.0",
+    "@types/node": "^22.19.17",
+    "@types/react": "^19.0.10",
+    "eslint": "^9.39.2",
+    "prettier": "^3.8.1",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
+  },
+  "platforms": [
+    "macOS"
+  ]
 }

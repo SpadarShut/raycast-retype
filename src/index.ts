@@ -1,78 +1,96 @@
-import { getSelectedText, showHUD, Clipboard } from "@raycast/api";
-import { runAppleScript } from "@raycast/utils";
-
-const EN = `qwertyuiop[]asdfghjkl;'\\\`zxcvbnm,./QWERTYUIOP{}ASDFGHJKL:"|~ZXCVBNM<>?§1234567890-=±!@#$%^&*()_+`;
-const BE = `йцукенгшўзх'фывапролджэё"ячсмітьбю/ЙЦУКЕНГШЎЗХЪФЫВАПРОЛДЖЭЁ~ЯЧСМІТЬБЮ?§1234567890-=±!"№%:,.;()_+`;
-
-const EN_KBD = {
-  name: "English",
-  input: EN,
-};
-const BE_KBD = {
-  name: "Belarusian+",
-  input: BE,
-};
-
-const selectLine = () =>
-  runAppleScript(`
-  tell application "System Events"
-    tell process (name of first application process whose frontmost is true)
-      key code 123 using {command down, shift down}
-      delay 0.1
-    end tell
-  end tell
-`);
+import { Clipboard, getSelectedText, showHUD } from "@raycast/api";
+import { getLayoutKeyMaps, selectLayout } from "swift:../swift";
+import {
+  detectSourceLayout,
+  getTargetOrder,
+  pickNextTarget,
+  selectLine,
+} from "./utils";
+import { HistoryManager } from "./SessionManager";
 
 export default async function main() {
-  let copiedText = "";
-
+  // 1. Load layouts + history BEFORE getSelectedText to minimize selection-to-paste gap
+  let layouts;
+  let history;
   try {
+    [layouts, history] = await Promise.all([
+      getLayoutKeyMaps().then((ls) =>
+        ls.filter((l) => l.keyMap && l.keyMap.length > 0),
+      ),
+      HistoryManager.load(),
+    ]);
+  } catch (e) {
+    await showHUD(`Error loading layouts: ${(e as Error).message}`);
+    return;
+  }
+
+  if (layouts.length < 2) {
+    await showHUD("Need at least 2 keyboard layouts with key data");
+    return;
+  }
+
+  // 2. Get selected text — NOW, right before detection + paste
+  let selectedText = "";
+  try {
+    selectedText = await getSelectedText();
+  } catch {
     try {
-      copiedText = await getSelectedText();
-    } catch (e: any) {
-      try {
-        await selectLine();
-        copiedText = await getSelectedText();
-        console.log("selected line");
-        await showHUD("selected line");
-      } catch (e) {
-        console.error(e);
-        await showHUD("Please select text");
-        return;
-      }
-    }
-    console.log("Copied:", JSON.stringify(copiedText));
-    if (!copiedText) {
+      await selectLine();
+      selectedText = await getSelectedText();
+    } catch {
       await showHUD("Please select text");
       return;
     }
-    const res = transformText(copiedText, EN_KBD.input, BE_KBD.input);
-    console.log("Transformed:", JSON.stringify(res));
-    await Clipboard.paste(res);
-    await showHUD(`${copiedText} -> ${res}`);
-  } catch (e: any) {
-    console.error(e);
-    await showHUD(e.message);
   }
-  // todo switch layouts?
-}
 
-const transformText = (text: string, from: string, to: string) => {
-  let newMessage = "";
-  const messageArr = text.split("");
-  for (const i in messageArr) {
-    const char = messageArr[i];
-    let index = from.indexOf(char);
-    if (index !== -1) {
-      newMessage += to.charAt(index);
-    } else {
-      index = to.indexOf(char);
-      if (index !== -1) {
-        newMessage += from.charAt(index);
-      } else {
-        newMessage += char;
-      }
-    }
+  if (!selectedText) {
+    await showHUD("Please select text");
+    return;
   }
-  return newMessage;
-};
+
+  // 3. Detect source layout (prefer active layout, then history as tiebreakers)
+  const activeId = layouts.find((l) => l.active)?.id;
+  const sourceLayout = detectSourceLayout({
+    text: selectedText,
+    layouts: layouts,
+    activeId,
+    historyOrder: history.targetOrder,
+  });
+  if (!sourceLayout) {
+    await showHUD("Could not detect source layout");
+    return;
+  }
+
+  // 4. Pick target and transform (prefer the currently active layout first)
+  const targetOrder = getTargetOrder({
+    layouts: layouts,
+    sourceId: sourceLayout.id,
+    historyOrder: history.targetOrder,
+    activeId,
+  });
+
+  const pick = pickNextTarget(
+    selectedText,
+    sourceLayout.keyMap,
+    targetOrder,
+    [],
+  );
+
+  if (pick.transformed === selectedText) {
+    await showHUD("Nothing to retype");
+    return;
+  }
+
+  // 5. Paste and switch keyboard layout
+  try {
+    await new Promise((r) => setTimeout(r, 50));
+    await Clipboard.paste(pick.transformed);
+    await selectLayout(pick.target.id);
+    await showHUD(`✅ ${pick.target.title}`);
+  } catch (e) {
+    await showHUD((e as Error).message);
+    return;
+  }
+
+  await HistoryManager.recordSuccess(pick.target.id);
+}
