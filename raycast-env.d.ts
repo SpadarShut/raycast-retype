@@ -24,6 +24,8 @@ declare namespace Arguments {
 
 declare module "swift:*/swift" {
   export function selectLayout(name: string): Promise<string>;
+  export function typeText(text: string): Promise<boolean>;
+  export function axSelectedText(): Promise<string>;
   export function getLayoutKeyMaps(): Promise<any[]>;
 
   export class SwiftError extends Error {
